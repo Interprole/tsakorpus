@@ -585,6 +585,14 @@ def find_sentences_json(page=0):
     else:
         query = get_session_data('last_query')
         wordConstraints = get_session_data('word_constraints')
+    
+    if query is None:
+        query = {}
+    if wordConstraints is None:
+        wordConstraints = []
+    if 'n_words' not in query:
+        query['n_words'] = 1
+    
     set_session_data('page', page)
 
     partition = 0   # do not use partitions (default)
