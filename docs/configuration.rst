@@ -19,9 +19,9 @@ One way of configuring the parameters is manually editing ``/conf/corpus.json``.
 
 .. _JSONLint: https://jsonlint.com/
 
-However, a more human-friendly way of configuring your corpus is doing that through a simple web interface. To do so, launch ``/search/tsakorpus.wsgi`` as a Python file on your local machine. You do not have to have Elasticsearch running. This will start a local web-server. Open your browser and type ``http://127.0.0.1:7342/config``. You will see a configuration page. Note that it is only accessible from your local machine.
+A more human-friendly way of configuring your corpus is doing that through a simple web interface. To do so, launch ``/search/tsakorpus.wsgi`` as a Python file on your local machine. You do not have to have Elasticsearch running. This will start a local web-server. Open your browser and type ``http://127.0.0.1:7342/config``. You will see a configuration page. Note that it is only accessible from your local machine.
 
-This page contains (almost) all possible parameters separated into rubrics. Fill in the boxes with the values you need and click "Save" in the bottom slide. You can save the page many times. After you click the button, a new ``corpus.json`` file will appear in ``/USER_CONFIG`` (*not* in ``/conf``). When you are ready, move it to ``/conf``. Filling all relevant boxes (especially those related to tag selection tables) can take a lot of time; please be patient.
+This page contains most (but probably not all) possible parameters separated into rubrics. Fill in the boxes with the values you need and click "Save" in the bottom slide. You can save the page many times. After you click the button, a new ``corpus.json`` file will appear in ``/USER_CONFIG`` (*not* in ``/conf``). When you are ready, move it to ``/conf``. Filling all relevant boxes (especially those related to tag selection tables) can take a lot of time; please be patient.
 
 Apart from ``corpus.json``, it will generate :doc:`translation files </interface_languages>` in ``/USER_CONFIG/translations``. Edit them and replace files in ``/search/web_app/translations/`` with them in your :doc:`fork </forks>`.
 
@@ -36,9 +36,13 @@ List of parameters
 
 - ``all_language_search_enabled`` (Boolean) -- whether the user may make language-inspecific queries. Relevant only in a corpus with multiple languages.
 
+- ``ambiguous_lemma_multiple_count`` (Boolean) -- this parameter makes sense only if ambiguous analyses are allowed. If ``true``, count the word towards the frequency of each lemma it has. For example, if a token _sense_ has two analyses, *sense (N)* and *sense (V)*, then increase the frequency of both lemmas by 1. This will lead to overestimated frequencies of lemmas that have homonyms. If ``false``, create a composite lemma for words with multiple analyses, e.g. *sense (N | V)* for ambiguous words, but also *sense (N)* and *sense (V)* for unambiguous ones. This yields precise frequencies, but generates ugly composite lemmas.
+
 - ``ambiguous_analyses`` (Boolean) -- whether there are tokens in the corpus which have multiple (ambiguous) analyses. In this case, the user can select if they want to search only among unambiguously analyzed words.
 
 - ``author_metafield`` (string) -- name of the second-important metadata field whose value will be displayed next to the title in headers of hit results. Defaults to ``author``.
+
+- ``bibref`` (dictionary) -- dictionary where keys are short IDs of bibliographic references (something like ``citation-keys`` in BibTeX) and values contain full descriptions of those references. Each value is a dictionary. Right now, the only possible key there is ``default``, and the value is a string with a full reference. (Other keys will be probably added in the future.) The idea is that the user sees a bubble with a full reference when the mouse pointer hovers over a token that has a ``bib_ref`` key with an ID of a bibliographic reference as a value. The full reference also appears at the end of a downloaded ``docx`` file with glossed examples if any of them contains such a token. First of all, such tokens may appear in reference or comment tiers, e.g., indicating which publication the text comes from. For example, a reference tier may contain a token like ``{"wf": "Kálmán (1976b: 120)", "wtype": "word", "bib_ref": "Kalman1976b"}``, and ``bibref`` may look like ``{"Kalman1976b": {"default": "Kálmán, Béla. 1976. Chrestomathia Vogulica. Budapest: Tankönyvkiadó."}}``.
 
 - ``case_sensitive_meta_fields`` (list of strings) -- names of the document-level metadata fields that should be treated as case-sensitive when searching (e.g. when selecting a subcorpus). Defaults to an empty list.
 
@@ -94,6 +98,8 @@ List of parameters
 
 - ``error_reports_enabled`` (Boolean) -- whether the user can send reports about mistakes in search hits. If enabled, each search hit will contain a button that toggles a modal form for writing the report. All reports are stored in ``search/error_reports.txt``. Defaults to ``False``.
 
+- ``exclude_by_meta`` (list of dictionaries) -- list of dictionaries, each of which contains a rule that determines which JSON documents should not be indexed (left out of the corpus) based on their metadata values. A document is skipped if it conforms to at least one rule. A document conforms to the rule if its metadata contains all the key-value pairs present in the rule, while possibly containing other keys. Defaults to an empty list.
+
 - ``exclude_from_dict`` (dictionary) -- if ``generate_dictionary`` is set to ``true``, this dictionary specifies which words should not be taken into account when generating a dictionary. For example, you may want to omit words annotated as hesitation or code switching. Keys are analysis fields (with the ``gr.`` prefix for grammatical categories, e.g. ``gr.pos``). Values are regexes. Words that have at liest one analysis field at least one value of which matches the corresponding regex will be excluded from the dictionary.
 
 - ``fulltext_search_enabled`` (Boolean) -- boolean value that determines whether a text box for full-text search should be displayed. Defaults to ``true``.
@@ -138,11 +144,106 @@ List of parameters
 
     - ``lexical_fields`` (list of strings) -- names of non-grammatical analysis fields that should appear in analysis popups between the lines with dictionary categories and (inflectional) grammatical categories. Defaults to empty list. All fields that do not belong to this list are displayed below the grammatical line.
 
+    - ``lexical_profiles`` (dictionary) -- templates for lexical profiles. (NB: This is a feature introduced in late 2025; the format will probably change during the next year.) *Lexical profiles* are pre-calculated statistics for lexemes, which serve as the basis for bar charts callable from Lemma search and the dictionary. Right now, you can include distributions of forms over values of a single grammatical category or a combination of categories. Keys are names of categories (as in :doc:`categories.json </categories>`), values are lists of their values. For example:
+
+  .. code-block::
+  
+    "lex_profile_categories":
+    {
+          "case": ["nom", "acc", "dat", "gen", "ins", "loc"],
+          "number": ["sg", "pl"],
+          "tense": ["prs", "pst", "pst2", "fut"],
+          "mood,aspect": ["indic,pfv", "indic,ipfv", "imp,pfv", "imp,ipfv"]
+    }
+
+  This will enable bar charts for for categories/combinations. It is not obligatory to list all possible values. Values other than those listed here, as well as empty values, will be added to the last bar called ``_other``. If ``subcorpora`` are specified, the values will be calculated not only for the whole corpus, but also for the subcorpora.
+    
     - ``lexicographic_order`` (list of strings) -- list of characters ordered alphabetically for sorting words and lemmata. If absent, standard Unicode ordering is applied. "Characters" are actually arbitrary strings and may include e.g. digraphs.
 
     - ``other_fields_order`` (list of strings) -- list of names of non-grammatical analysis fields which defines in which order their values should be displayed in word analyses. If the field is missing, the fields are sorted alphabetically. If present, this field must contain all field names that exist in the corpus.
 
+    - ``paradigm_templates`` (list of dictionaries) -- templates for paradigms. If present for a given language, then the dictionary and the lemma search table will contain links that show the tabular paradigm of the respective lexeme (only forms found in the corpus). Paradigms can have a complex structure and should look differently for different word classes, which is why multiple layouts can be described for different (sub)classes. Each list element describes the paradigm structure for one word class. Its keys are ``regex_grdic`` and ``tables``. Each paradigm structure is applied to those lexemes whose comma-separated dictionary categories (such as part of speech or animacy, see ``dictionary_categories`` above) match the regex. The structure is defined in ``tables`` (list of dictionaries). The entire paradigm will not fit into one table if there are more than two parameters (inflectional categories), which is why you may need multiple tables for one lexeme. Each item in ``tables`` describes the layout of one paradigm table. Its keys are ``gramm``, ``title``, ``rows`` and ``columns``. The values for ``gramm`` and ``title`` are either strings or lists of strings. ``gramm`` contains inflectional tags (or Boolean expressions with combinations of tags) that should be fixed for this particular table. ``title`` contains the header for the table, if different from ``gramm``. If the same table structure has to be applied to many tags or tag combinations (e.g., first for ``sg``, then for ``pl``), these maybe listed in a list. The values of ``rows`` and ``columns`` are lists of dictionaries. They may be empty for one-dimensional tables. Each dictionary describes one row or column and contains keys ``gramm`` and ``title``. Here is an example:
+
+  .. code-block::
+  
+    "paradigm_templates": [
+      {
+        "regex_grdic": "^N\\b",
+        "tables": [
+          {
+            "gramm": ["sg", "pl"],
+            "title": ["sg", "pl"],
+            "rows": [
+              {
+                "gramm": "nom",
+                "title": "nom"
+              },
+              {
+                "gramm": "acc",
+                "title": "acc"
+              },
+              {
+                "gramm": "gen",
+                "title": "gen"
+              }
+            ],
+            "columns": [
+              {
+                "gramm": "~(1sg|2sg|1pl|2pl|3sg|3pl)",
+                "title": "nonposs"
+              },
+              {
+                "gramm": "1sg",
+                "title": "1sg"
+              },
+              {
+                "gramm": "2sg",
+                "title": "2sg"
+              },
+              {
+                "gramm": "3sg",
+                "title": "3sg"
+              },
+              {
+                "gramm": "1pl",
+                "title": "1pl"
+              },
+              {
+                "gramm": "2pl",
+                "title": "2pl"
+              },
+              {
+                "gramm": "3pl",
+                "title": "3pl"
+              }
+            ]
+          },
+          {
+            "gramm": "attr_o,~(sg|pl)",
+            "title": "attr_o"
+          },
+          {
+            "gramm": "attr_em,~sg",
+            "title": "attr_em",
+            "rows": [
+              {
+                "gramm": "~pl",
+                "title": "sg"
+              },
+              {
+                "gramm": "pl"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  
+  This template will be applied to words whose dictionary categories start with ``N``. It will include 4 tables: one for singular forms (``sg``), one for plural (``pl``) and two for productive attributives tagged as ``attr_o`` and ``attr_em``. Inside first two tables, there will be rows corresponding to 3 case values and 7 columns corresponding to 7 possession values (including a negative search for non-possessive forms). The third table will contain just one cell, and the last one, two cells (two rows, one column).
+  
 - ``languages`` (list of strings) -- names of the languages used in the corpus. The order of the languages determines how they are encoded in the index (the code of the language is its index in this list) and, in the case of parallel corpora, in which order they are displayed within one parallel context.
+
+- ``lemma_lowercase`` (Boolean) -- whether all lemmas should be stored in lowercase. Defaults to ``false``. It is used in indexation only. If set to false, the lemma search will be case sensitive.
 
 - ``lemma_table_fields`` (list of strings) -- names of the word-level analysis fields that should be displayed in the table with Lemma search results and in the dictionary (if ``generate_dictionary`` is set). It will appear along with the lemma, which is included automatically, and the dictionary categories, which appear if ``word_search_display_gr`` is set. Defaults to empty list. For each language, columns corresponding to the fields that are not on the ``lang_props[LANGNAME].lexical_fields`` list will be left empty. See also ``word_table_fields``.
 
@@ -158,6 +259,8 @@ List of parameters
 
 - ``max_words_in_sentence`` (integer) -- when building a multi-word query with specific distances or distance ranges between the search terms, Tsakorpus has to produce a huge query of the kind "(word1 is blah-blah-blah and its index in the sentence is 0, word2 is blah-blah and its index in the sentence is 1 or 2) or (word1 is blah-blah-blah and its index in the sentence is 1, word2 is blah-blah and its index in the sentence is 2 or 3) or ...". The reason for that is that there is no way to impose distance constraints when looking inside a list in Elasticsearch, since the lists are interpreted as mere sacks with values. The integer ``max_words_in_sentence`` defines which sentence positions should be enumerated in multi-word queries. This is not an actual upper bound on the sentence length (there is none), but the tails of longer sentences will not be available for some multi-word queries.
 
+- ``max_stats_values`` (integer) -- how many metadata values may be considered when calculating statistics for the bar or line plots. If a metadata field has too many different values, calculating statistics for all of them may be too long, as each value requires a separate Elasticsearch request. This number defaults to 25. It's safe to increase it for small corpora though. The set of values is sorted by the number of words in the subcorpus defined by that value, larger subcorpora first. If the set of values is truncated, then "the rest" will appear at the end of the plot / table as a separate bucket. In a bar plot not related to years, the maximum number of bars displayed at once is 25 in any case. However, if ``max_stats_values`` is larger than 25, then the table under the plot will contain more rows (one for each value). The user may disable any of them by unchecking the relevant box, which will lead to one of the bars disappearing from the plot and a bar for the next row appearing on the right instead.
+
 - ``media_length`` (integer) -- duration of media files in seconds. During indexing, source media files are split into overlapping pieces of equal duration (recommended duration is 1-3 minutes). This parameter is required at search time in order to recalculate offsets of neighboring sentences that were aligned with different pieces.
 
 - ``media_youtube`` (Boolean) -- if ``media`` is true, determines whether the media files are stored on Youtube. Since plain audio/video files and Youtube videos require different player settings, all your media files have to be either uploaded to Youtube, or stored as media files on the server.
@@ -169,6 +272,10 @@ List of parameters
 - ``multiple_choice_fields`` (dictionary) -- describes tag selection tables for sentence-level metadata fields or word-level fields (other that *Grammar* or *Gloss*). Keys are field names, values are structured in the same way as ``gramm_selection`` above.
 
 - ``negative_search_enabled`` (Boolean) -- whether the negative search button should be present in the word query form. Defaults to ``true``.
+
+- ``non_kw_meta_fields`` (list of strings) -- names of document- or sentence-level metadata fields whose values should be searched as (tokenized) text and not as (holistic) keywords. By default, all fields other than those in ``integer_meta_fields`` are searched as keywords. This is faster, but does not allow for, e.g., wildcard searches or tokenization. For example, if you have multiple genre labels, such as ``fiction novel`` and want such documents to be included when searching for ``genre = "fiction"``, then ``genre`` should be on this list.
+
+- ``partial_word_fields`` (list of strings) -- names of the word-level analysis fields and sentence-level metadata fields (should start with ``sent_meta_``) that are only annotated in some, but not all, texts. Search boxes for these will be accompanied by a warning. Defaults to empty list.
 
 - ``partitions`` (integer) -- number of indexes the sentences are split into. In large corpora (on the order of tens or hundreds of millions of tokens), a complex search query that would return many hits may take too long to execute on all sentences. If ``partitions`` is set and is greater than ``1``, then the corpus sentences are split into random partitions of (almost) equal size in tokens at indexation time. If random sorting is set at search time, a query is first performed on one random partition. If enough hits are found to make reliable extrapolations (Wilson's 90% confidence interval for the probability of a sentence being a hit is not wider than 5% of the number of hits), the client receives approximate numbers and hits from one partition. If not, the search is performed on the entire corpus. The number of partitions must be set in such a way that each of them contains at least 1 million tokens. Otherwise, too many queries will not have enough hits in individual partitions, so the search time will actually become longer because of the unnecessary random-partition search. A change of value to anything greater than ``1`` requires re-indexing of the corpus.
 
@@ -201,6 +308,8 @@ List of parameters
 
 - ``share_query_url`` (Boolean) -- whether the query in the "Share query" modal should start with the URL of the current corpus, followed by ``?``. This way, it works like a full URL where the query is encoded in the GET parameters. Defaults to ``false``.
 
+- ``show_info_alert`` (Boolean) -- if an info box should be displayed just above the greeting box. If ``true``, the contents of the box is loaded from ``search/web_app/templates/index/info_alert_%LANG_CODE%.html``, where ``%LANG_CODE%`` is the code of the current interface language. Defaults to ``false``.
+
 - ``start_page_url`` (string) -- a string with the URL of the start page of the corpus, if there is one. It is used to link the header of the search page to the start page.
 
 - ``subcorpora`` (dictionary) -- used for pre-defining a small number of important subcorpora based on document-level metadata values. Keys are labels of subcorpora (alphanumeric ASCII characters only), values are dictionaries. Each dictionary contains conditions on metadata values, where keys are names of metadata fields and values are regexes the contents of these fields have to match for a document to be assigned to this subcorpus. E.g., ``{"press": {"genre": "newspaper|journal"}}`` will define a subcorpus labeled ``press`` as all documents that have a ``genre`` field equal to either ``newspaper`` or ``journal``. Search hits that come from a particular subcorpus receive small symbols (circles,  by default) at the beginning of their header, right before the title. This facilitates quick visual attribution of a hit to one of the subcorpora by the user. Each of these symbols is a ``div`` element with a class ``subcorpus_%LABEL%``. Their styles can be defined in ``search.css`` (there are no pre-defined styles). There may be documents that belong to multiple subcorpora or do not belong to any. Translations of subcorpus labels into interface languages, if different from metadata values, should be defined in ``metadata_values.txt`` (see :doc:`interface languages </interface_languages>`).
@@ -211,7 +320,7 @@ List of parameters
 
 - ``transliterations`` (list of strings) -- list of supported transliterations. For each transliteration, there should be a function in ``/search/web_app/transliteration.py`` named ``trans_%TRANSLITERATION_NAME%_baseline`` that takes the text and the name of the language as input and returns transliterated text.
 
-- ``try_restart_elastic`` (Boolean) -- if local Elasticsearch is used and it seems to be down (no connection can be established when a client opens the search page), try starting it by running ``search/restart_elasticsearch.sh`` (only in Linux). Defaults to ``true``. Note that starting a service requires sudo privileges. In order for this to work without you manually entering your sudo password, the user who runs the app has to be allowed to use sudo without a password in this case. This can be achieved by running ``sudo visudo`` and adding the following line::
+- ``try_restart_elastic`` (Boolean) -- if local Elasticsearch is used and it seems to be down (no connection can be established when a client opens the search page), try starting it by running ``search/restart_elasticsearch.sh`` (only in Linux). Defaults to ``false``. Note that starting a service requires sudo privileges. In order for this to work without you manually entering your sudo password, the user who runs the app has to be allowed to use sudo without a password in this case. This can be achieved by running ``sudo visudo`` and adding the following line::
 
     your_username   ALL=NOPASSWD:/usr/bin/systemctl start elasticsearch.service
 
@@ -267,6 +376,7 @@ Further configuration
    
    interface_languages
    transliteration
+   external_links
    input_methods
    keyboards
    styles

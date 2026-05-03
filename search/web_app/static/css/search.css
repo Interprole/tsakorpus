@@ -242,6 +242,17 @@
 	color: #cf7a13!important;
 }
 
+
+.lex_profile_link {
+    font-size: 18px;
+	margin: auto;
+	color: #8f4a00!important;
+}
+
+.lex_profile_link:hover {
+	color: #cf7a13!important;
+}
+
 .bi-arrows-fullscreen {
 	width: 22px;
 	font-size: 22px;
@@ -351,6 +362,11 @@
 	/* max-height: calc(100vh - 310px); */
 	overflow-y: auto;
 	min-height: 100px;
+}
+
+#ipm_count {
+	text-decoration: dotted underline;
+	cursor: pointer;
 }
 
 .p_highlighted {
@@ -538,6 +554,10 @@ label {
 	border: solid 1px #707070;
 }
 
+.error_report_input:not(:valid) {
+    background-color: #ffffc9;
+}
+
 .disabled_search_input {
 	color: #AAAAAA;
 }
@@ -611,13 +631,20 @@ label {
 	height: 100%;
 }
 
-.word_plus, .word_minus, .add_rel, .neg_query, .word_expand, .search_w, .search_from_ana, .stat_w, .search_l, .stat_l, #show_help, #cite_corpus {
+.word_plus, .word_minus, .add_rel, .neg_query, .word_expand, .search_w, .search_from_ana, .ana_external_link, .stat_w, .search_l, .stat_l, .lex_profile_l, .paradigm_l, #show_help, #cite_corpus, .download_plot_png {
 	cursor: pointer;
 }
 
-.search_w, .stat_w, .search_l, .stat_l {
+.search_w, .stat_w, .search_l, .stat_l, .lex_profile_l, .paradigm_l {
 	padding-left: 10px;
 	padding-right: 5px;
+}
+
+.download_plot_png {
+	padding-left: 17px;
+	padding-right: 5px;
+	font-size: 1.5em;
+	vertical-align: bottom;
 }
 
 .search_from_ana {
@@ -626,6 +653,10 @@ label {
 	color: #87a17f;
 }
 
+.ana_external_link {
+	padding-left: 2px;
+	color: #0e7a05;
+}
 
 .add_rel, .word_plus, .word_minus, .word_expand, .neg_query {
 	margin-bottom: 3px;
@@ -956,6 +987,13 @@ hr.separator {
 	text-align: center;
 }
 
+.subcorpus_nested_option {
+    margin-left: 24px;
+    text-align: start;
+    padding-left: 12px;
+    background-color: #ffffffc7;
+}
+
 .subcorpus_option_enabled {
 	background-color: #fff9b2;
 }
@@ -1012,8 +1050,24 @@ hr.separator {
 	z-index: 9999999;  /* Dirty trick for dealing with wide third-party headers */
 }
 
-.modal-dialog {
-	max-width: 60vw;
+#lex_profile {
+	z-index: 10000000;  /* This one can appear on top of other modals */
+}
+
+.tooltip {
+	z-index: 11000000;
+}
+
+@media (min-width: 576px) {
+	.modal-dialog {
+		max-width: 80vw;
+	}
+}
+
+@media (min-width: 1400px) {
+  .modal-dialog {
+  	max-width: 1122px;
+  }
 }
 
 .modal-content {
@@ -1185,6 +1239,42 @@ hr.separator {
 	max-height: 80rem;
 }
 
+.paradigm_table {
+	display: contents;
+	border: solid 1px gray;
+	border-radius: 4px;
+	margin: auto;
+	margin-left: 15px;
+	margin-bottom: 15px;
+	border-spacing: 0;
+}
+
+.paradigm_table td:nth-child(odd) {
+	background-color: rgba(135, 153, 246, 0.2);
+}
+
+.paradigm_table tr:nth-child(even) {
+	background-color: rgba(135, 153, 246, 0.2);
+}
+
+.paradigm_table td {
+	border: 1px dotted gray;
+}
+
+.paradigm_table th {
+	padding: 5px;
+	color: #f7fdff;
+	min-width: 35px;
+	background-color: #3d3b7d;
+	border: 1px dotted white;
+	border-bottom: none;
+	text-align: center;
+}
+
+.paradigm_table thead th {
+	border-top: none!important;
+}
+
 .tabs-left {
   border-bottom: none;
   padding-top: 2px;
@@ -1299,6 +1389,27 @@ hr.separator {
 	/* background-color: #6b6f75; */
 	background-color: #085da6;
 	text-decoration: none;
+}
+
+.partial_annotation_icon {
+	color: #ee6060;
+	border-radius: 4px;
+	padding: 0px 4px;
+	text-decoration: none;
+}
+
+.partial_annotation_icon:hover {
+	color: white;
+	background-color: #ee6060;
+	text-decoration: none;
+}
+
+.query_fields_group_header {
+  margin: auto;
+  text-align: left;
+  text-transform: uppercase;
+  font-size: 0.5em;
+  color: #6b6b6b;
 }
 
 .search_buttons {
@@ -1426,6 +1537,35 @@ hr.separator {
   font: 11px sans-serif;
   color: #333;
 }
+
+.lex_profile_plot .axis text {
+	font-size: 3em;
+	color: #555555;
+}
+
+.lex_profile_th_categ {
+	width: 12vw;
+}
+
+.lex_profile_th_corpus {
+	width: 30vw;
+	min-width: 350px;
+}
+
+.lex_profile_th_subcorpus {
+	width: 20vw;
+	min-width: 300px;
+}
+
+#lex_profile_table {
+	overflow-y: scroll;
+}
+
+.lex_profile_lex_field {
+	color: #656565;
+	font-size: 0.9em;
+}
+
 /*
 .x.axis text {
   transform: rotate(90deg);
@@ -1621,8 +1761,12 @@ svg circle {
     display: none;
 }
 
-#word_stats_max_bars {
+#word_stats_max_bars, #word_stats_max_results {
     margin: 0.5rem;
+}
+
+#png_img, #png_canvas, #dummy_download_link {
+	display: none;
 }
 
 .th_query_word {

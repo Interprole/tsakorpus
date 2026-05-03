@@ -1,0 +1,33 @@
+<h3>
+	<em>{{ data.lemma }}</em>
+	{% if data.grdic %} ({{ data.grdic }}){% endif %} &nbsp;
+	{% for field in lex_fields %}
+		{% if field in data %}
+			<span class="lex_profile_lex_field">{{ data[field] }}</span>
+			{% if not loop.last %} <span class="lex_profile_lex_field">•</span> {% endif %}
+		{% endif %}
+	{% endfor %}
+</h3>
+<div id="paradigm_body">
+{% for table in data.paradigm %}
+{% if table.title|length > 0 %}<h3>{{ table.title }}</h3>{% endif %}
+<table class="table paradigm_table">
+	<thead>
+		<th></th>
+		{% for col in table.columns %}
+		<th>{{ col }}</th>
+		{% endfor %}
+	</thead>
+	<tbody>
+		{% for iRow in range(table.rows | length) %}
+		<tr>
+			<th>{{ table.rows[iRow] }}</th>
+			{% for iCol in range(table.columns | length) %}
+			<td>{{ table.cells[iRow][iCol] | safe }}</td>
+			{% endfor %}
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% endfor %}
+</div>

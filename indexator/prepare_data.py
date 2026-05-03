@@ -163,12 +163,18 @@ class PrepareData:
             'rank_true': {'type': 'integer'},
             'n_sents': {'type': 'integer'},
             'n_docs': {'type': 'integer'},
+            'lex_profile': {'type': 'binary'},  # statistics for the lexical profile, json as base64-encoded string
             'id': {'type': 'keyword'},         # for aggregations / sorting
             'w_id': {'type': 'keyword'},       # word ID
             'l_id': {'type': 'keyword'},       # lemma ID
             'wf_order': {'type': 'integer'},   # position of the word form in sorted list of word forms
             'l_order': {'type': 'integer'}     # position of the lemma in sorted list of lemmata
         }
+
+        if 'subcorpora' in self.settings:
+            for sub in self.settings['subcorpora']:
+                m['freq_' + sub] = {'type': 'keyword'}
+                m['lemma_freq_' + sub] = {'type': 'keyword'}
         for field in self.wordFields:
             # additional word-level fields such as translation
             if self.rxBadField.search(field) is None and field not in self.kwFields:
@@ -216,7 +222,7 @@ class PrepareData:
         """
         Return Elasticsearch mapping for the type "doc".
         Each element of docs index contains metadata about
-        about a single document.
+        a single document.
         """
         m = {
             'n_words': {'type': 'integer'},

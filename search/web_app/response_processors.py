@@ -9,10 +9,11 @@ import jinja2
 from flask import render_template
 try:
     from .transliteration import *
+    from .additional_functions import dictionary_link_wf, dictionary_link_lemma
 except ImportError:
     # This happens when response_processors.py is imported
     # from outside this package, but we do not need the
-    # transliterations in that case
+    # transliterations or additional functions in that case
     pass
 
 
@@ -28,7 +29,7 @@ class SentenceViewer:
     rxTabs = re.compile('^\t*$')
     rxKW = re.compile('_kw$')
     rxStartSpacesNewlines = re.compile('^[\r\n\t ]+', flags=re.DOTALL)
-    invisibleAnaFields = {'gloss_index'}
+    invisibleAnaFields = {'gloss_index', 'l_id', 'w_id'}
 
     def __init__(self, settings, search_client, fullText=False):
         """
@@ -222,7 +223,7 @@ class SentenceViewer:
                                           grAnaPart=grAnaPart,
                                           noSearchButton=True).strip()
 
-    def build_ana_div(self, ana, lang, translit=None):
+    def build_ana_div(self, ana, lang, translit=None, lemmaLink=''):
         """
         Build the contents of a div with one particular analysis.
         """
@@ -233,7 +234,15 @@ class SentenceViewer:
             return (len(self.settings.lang_props[lang]['other_fields_order']),
                     x['key'])
 
-        ana4template = {'lex': '', 'pos': '', 'grdic': '', 'lex_fields': [], 'gr': '', 'other_fields': []}
+        ana4template = {
+            'lex': '',
+            'pos': '',
+            'grdic': '',
+            'lex_fields': [],
+            'gr': '',
+            'other_fields': [],
+            'lemma_link': lemmaLink
+        }
         if 'lex' in ana:
             ana4template['lex'] = self.transliterate_baseline(ana['lex'], lang=lang, translit=translit)
         if 'gr.pos' in ana:
@@ -241,8 +250,11 @@ class SentenceViewer:
         grValues = []     # inflectional categories
         grdicValues = []  # dictionary categories such as nominal gender
         for field in sorted(ana):
-            if field not in ['lex', 'gr.pos'] and field not in self.invisibleAnaFields:
-                value = ana[field]
+            if field not in ['lex', 'gr.pos'] and field not in self.invisibleAnaFields and not field.endswith('_display'):
+                if field + '_display' in ana:
+                    value = ana[field + '_display']
+                else:
+                    value = ana[field]
                 if type(value) == list:
                     value = ', '.join(value)
                 if field.startswith('gr.'):
@@ -278,7 +290,9 @@ class SentenceViewer:
                                           ana=ana4template,
                                           noSearchButton=True).strip()
 
-    def build_ana_popup(self, word, lang, matchingAnalyses=None, translit=None):
+    def build_ana_popup(self, word, lang,
+                        matchingAnalyses=None, sentMeta=None,
+                        translit=None):
         """
         Build a string for a popup with the word and its analyses. 
         """
@@ -289,11 +303,25 @@ class SentenceViewer:
             data4template['wf_display'] = self.transliterate_baseline(word['wf_display'], lang=lang, translit=translit)
         elif 'wf' in word:
             data4template['wf'] = html.escape(self.transliterate_baseline(word['wf'], lang=lang, translit=translit))
+            wordAna = None
+            if 'ana' in word:
+                wordAna = word['ana']
+            try:
+                data4template['wf_link'] = dictionary_link_wf(lang, word['wf'], wordAna, sentMeta)
+            except NameError:
+                data4template['wf_link'] = ''
         if 'ana' in word:
             simplifiedAnas, simpleMatchingAnalyses = self.simplify_ana(word['ana'], matchingAnalyses)
             for iAna in range(len(simplifiedAnas)):
-                ana4template = {'match': iAna in simpleMatchingAnalyses,
-                                'ana_div': self.build_ana_div(simplifiedAnas[iAna], lang, translit=translit)}
+                try:
+                    lemmaLink = dictionary_link_lemma(lang, word['wf'], simplifiedAnas[iAna], sentMeta)
+                except NameError:
+                    lemmaLink = ''
+                ana4template = {
+                    'match': iAna in simpleMatchingAnalyses,
+                    'ana_div': self.build_ana_div(simplifiedAnas[iAna], lang,
+                                                  translit=translit, lemmaLink=lemmaLink)
+                }
                 data4template['analyses'].append(ana4template)
         try:
             return render_template('search_results/analyses_popup.html', data=data4template)
@@ -304,7 +332,9 @@ class SentenceViewer:
                                           data=data4template,
                                           noSearchButton=True)
 
-    def prepare_analyses(self, words, indexes, lang, matchWordOffsets=None, translit=None):
+    def prepare_analyses(self, words, indexes, lang,
+                         matchWordOffsets=None, sentMeta=None,
+                         translit=None):
         """
         Generate viewable analyses for the words with given indexes.
         """
@@ -322,7 +352,9 @@ class SentenceViewer:
             matchingAnalyses = []
             if matchWordOffsets is not None and iStr in matchWordOffsets:
                 matchingAnalyses = [offAna[1] for offAna in matchWordOffsets[iStr]]
-            result += self.build_ana_popup(word, lang, matchingAnalyses=matchingAnalyses, translit=translit)
+            result += self.build_ana_popup(word, lang,
+                                           matchingAnalyses=matchingAnalyses, sentMeta=sentMeta,
+                                           translit=translit)
         # result = result.replace('"', "&quot;").replace('<', '&lt;').replace('>', '&gt;')
         return result
 
@@ -362,9 +394,13 @@ class SentenceViewer:
             curClass += ' src '
         curClass = curClass.lstrip()
 
-        if 'word' in curClass:
+        if 'word' in curClass and 'words' in sentSrc:
+            sentMeta = {}
+            if 'meta' in sentSrc:
+                sentMeta = sentSrc['meta']
             dataAna = self.prepare_analyses(sentSrc['words'], curWords,
                                             lang, matchWordOffsets,
+                                            sentMeta=sentMeta,
                                             translit=translit)
             dataBibref, dataBibrefTooltips = self.prepare_bib_ref(sentSrc['words'], curWords)
         else:
@@ -534,7 +570,7 @@ class SentenceViewer:
                             fname = fname[:-4]
                         if not fname.lower().endswith('.exb'):
                             fname += '.exb'
-                        fname = re.sub('^tsakorpus_|_inel$', '', self.settings.corpus_name) + '/' + fname
+                        fname = re.sub('^tsakorpus_(?:current_)?|_inel$', '', self.settings.corpus_name) + '/' + fname
                         if 'meta' in sentSource and 'exb_anchor' in sentSource['meta']:
                             exbAnchor = '___' + sentSource['meta']['exb_anchor']
                         externalLink = 'exmaralda:' + fname + exbAnchor
@@ -1084,7 +1120,11 @@ class SentenceViewer:
                                    nSents=nSents,
                                    nDocs=nDocs,
                                    wID=wID,
-                                   wfSearch=wSource['wf'])
+                                   wfSearch=wSource['wf'],
+                                   lang=lang)
+        bShowParadigms = False
+        if lang in self.settings.lang_props and 'paradigm_templates' in self.settings.lang_props[lang]:
+            bShowParadigms = True
         return render_template('search_results/lemma_table_row.html',
                                ana_popup=html.escape(self.build_ana_popup(wSource, lang, translit=translit)),
                                wf=wf,
@@ -1100,7 +1140,9 @@ class SentenceViewer:
                                nDocs=nDocs,
                                nForms=nForms,
                                lID=wID,
-                               wfSearch=wSource['wf'])
+                               wfSearch=wSource['wf'],
+                               lang=lang,
+                               show_paradigms=bShowParadigms)
 
     def process_word_buckets(self, w, nDocuments, nForms, freq, lang, searchType='word', translit=None):
         """
@@ -1157,6 +1199,9 @@ class SentenceViewer:
             gr = ''
             if 'grdic' in wSource:
                 gr = wSource['grdic']  # lexeme-level grammatical tags as a string
+            bShowParadigms = False
+            if lang in self.settings.lang_props and 'paradigm_templates' in self.settings.lang_props[lang]:
+                bShowParadigms = True
             return render_template('search_results/lemma_table_row.html',
                                    wf='',
                                    wfDisplay='',
@@ -1172,7 +1217,9 @@ class SentenceViewer:
                                    nDocs=nDocs,
                                    nForms=nForms,
                                    lID=w['_id'],
-                                   wfSearch=wSource['wf'])
+                                   wfSearch=wSource['wf'],
+                                   lang=lang,
+                                   show_paradigms=bShowParadigms)
 
     def filter_multi_word_highlight_iter(self, hit, nWords=1, negWords=None, keepOnlyFirst=False):
         """
@@ -1235,46 +1282,54 @@ class SentenceViewer:
                 hitsProcessed['total_freq'] += 1
                 word['_source']['lang'] = lang
                 if searchType == 'word':
-                    wID = word['_source']['w_id']
+                    wIDs = word['_source']['w_id']
                     wf = word['_source']['wf'].lower()
                 elif searchType == 'lemma':
-                    wID = word['_source']['l_id']
-                    wf = self.get_lemma(word['_source'])
+                    wIDs = word['_source']['l_id']
                 else:
-                    wID = 'w0'
+                    wIDs = ['w0']
                     wf = ''
-                try:
-                    hitsProcessed['word_ids'][wID]['n_occurrences'] += 1
-                    hitsProcessed['word_ids'][wID]['sents'].add(hit['_id'])
-                    hitsProcessed['word_ids'][wID]['docs'].add(hit['_source']['doc_id'])
+                if type(wIDs) is str:
+                    wIDs = [wIDs]
+                for wID in wIDs:
                     if searchType == 'lemma':
-                        hitsProcessed['word_ids'][wID]['forms'].add(word['_source']['w_id'])
-                except KeyError:
-                    hitsProcessed['n_occurrences'] += 1
-                    hitsProcessed['word_ids'][wID] = {
-                        'n_occurrences': 1,
-                        'sents': {hit['_id']},
-                        'docs': {hit['_source']['doc_id']},
-                        'wf': wf
-                    }
-                    if searchType == 'lemma':
-                        hitsProcessed['word_ids'][wID]['forms'] = {word['_source']['w_id']}
-                    elif searchType == 'word':
-                        hitsProcessed['word_ids'][wID]['lemma'] = self.get_lemma(word['_source'])
+                        wf = self.get_lemma(word['_source'], wID)
+                    try:
+                        hitsProcessed['word_ids'][wID]['n_occurrences'] += 1
+                        hitsProcessed['word_ids'][wID]['sents'].add(hit['_id'])
+                        hitsProcessed['word_ids'][wID]['docs'].add(hit['_source']['doc_id'])
+                        if searchType == 'lemma':
+                            hitsProcessed['word_ids'][wID]['forms'].add(word['_source']['w_id'])
+                    except KeyError:
+                        hitsProcessed['n_occurrences'] += 1
+                        hitsProcessed['word_ids'][wID] = {
+                            'n_occurrences': 1,
+                            'sents': {hit['_id']},
+                            'docs': {hit['_source']['doc_id']},
+                            'wf': wf
+                        }
+                        if searchType == 'lemma':
+                            hitsProcessed['word_ids'][wID]['forms'] = {word['_source']['w_id']}
+                        elif searchType == 'word':
+                            hitsProcessed['word_ids'][wID]['lemma'] = self.get_lemma(word['_source'], wID)
         if bRelevantWordExists:
             hitsProcessed['n_sentences'] += 1
             hitsProcessed['doc_ids'].add(hit['_source']['doc_id'])
 
-    def get_lemma(self, word):
+    def get_lemma(self, word, lID=''):
         """
         Join all lemmata in the JSON representation of a word with
         an analysis and return them as a string.
+        If lID is specified, only take the lemma which corresponds to it.
         """
         if 'ana' not in word:
             return ''
+        checkLID = (self.settings.ambiguous_lemma_multiple_count and len(lID) > 0)
         if not self.settings.keep_lemma_order:
             curLemmata = set()
             for ana in word['ana']:
+                if (checkLID and ('l_id' not in ana or ana['l_id'] != lID)):
+                    continue
                 if 'lex' in ana:
                     if type(ana['lex']) == list:
                         for l in ana['lex']:
@@ -1284,6 +1339,8 @@ class SentenceViewer:
             return '/'.join(l for l in sorted(curLemmata))
         curLemmata = []
         for ana in word['ana']:
+            if (checkLID and ('l_id' not in ana or ana['l_id'] != lID)):
+                continue
             if 'lex' in ana:
                 if type(ana['lex']) == list:
                     for l in ana['lex']:
@@ -1340,6 +1397,8 @@ class SentenceViewer:
             curValues = set()
             for k, v in word.items():
                 if k == field:
+                    if k + '_display' in word:
+                        v = word[k + '_display']
                     if type(v) == list:
                         for value in v:
                             curValues.add(value)
@@ -1349,6 +1408,8 @@ class SentenceViewer:
                 for ana in word['ana']:
                     for k, v in ana.items():
                         if k == field:
+                            if k + '_display' in ana:
+                                v = ana[k + '_display']
                             if type(v) == list:
                                 for value in v:
                                     curValues.add(value)
@@ -1369,6 +1430,8 @@ class SentenceViewer:
             curValues = set()
             for k, v in lemma.items():
                 if k == field:
+                    if k + '_display' in lemma:
+                        v = lemma[k + '_display']
                     if type(v) == list:
                         for value in v:
                             curValues.add(value)
@@ -1556,6 +1619,9 @@ class SentenceViewer:
             'n_occurrences': 0,
             'n_sentences': 0,
             'n_docs': 0,
+            'subcorpus_size': 0,
+            'ipm': 0,
+            'show_occurrences': True,
             'page': 1,
             'message': 'Nothing found.',
             'contexts': [],
@@ -1581,6 +1647,12 @@ class SentenceViewer:
             if result['n_docs'] > 0 and 'agg_nwords' in response['aggregations']:
                 result['n_occurrences'] = int(math.floor(response['aggregations']['agg_nwords']['sum']))
                 result['n_sentences'] = int(math.floor(response['aggregations']['agg_nwords']['count']))
+        if 'subcorpus_size' in response:
+            result['subcorpus_size'] = response['subcorpus_size']
+        result['ipm'] = math.ceil(result['n_occurrences'] * 1000000 / max(1, result['subcorpus_size']))
+        if not response['show_occurrences'] and result['n_occurrences'] > 1:
+            result['show_occurrences'] = False
+
         for iHit in range(len(response['hits']['hits'])):
             langID, lang = self.get_lang_from_hit(response['hits']['hits'][iHit])
             langView = lang

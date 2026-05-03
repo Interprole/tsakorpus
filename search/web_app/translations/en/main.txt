@@ -193,6 +193,15 @@ msgstr "Language/tier:"
 msgid "Languages / tiers:"
 msgstr "Languages / tiers:"
 
+msgid "Add. word-level annotation"
+msgstr "Add. word-level annotation"
+
+msgid "Sentence-level annotation"
+msgstr "Sentence-level annotation"
+
+msgid "Only annotated in some texts"
+msgstr "Only annotated in some texts"
+
 #: templates/index/query_area.html:36
 #: templates/modals/subcorpus_selection.html:58
 msgid "langname_all"
@@ -437,7 +446,10 @@ msgstr "Parameter: "
 #: templates/modals/subcorpus_selection.html:71
 #: templates/modals/word_stats.html:28
 msgid "A maximum of 25 metadata values can be displayed, sorted by the number of words in the relevant texts."
-msgstr "A maximum of 25 metadata values can be displayed, sorted by the number of words in the relevant texts."
+msgstr "A maximum of 25 values can be displayed in a bar plot, sorted by the number of words in the relevant texts."
+
+msgid "Maximal number of values to be displayed: "
+msgstr "Maximal number of values to be displayed: "
 
 #: templates/modals/subcorpus_selection.html:73
 #: templates/modals/word_stats.html:81
@@ -580,6 +592,9 @@ msgstr "1%%"
 #, python-format
 msgid "0.1%%"
 msgstr "0.1%%"
+
+msgid "Download this plot in PNG"
+msgstr "Download this plot in PNG"
 
 #: templates/search_results/lemma_table_row.html:16
 #: templates/search_results/word_table_row.html:20
@@ -736,6 +751,12 @@ msgstr "search"
 msgid "word_th_word stats"
 msgstr "statistics"
 
+msgid "word_th_lex_profile"
+msgstr "Lexical profile"
+
+msgid "Lexical profile"
+msgstr "Lexical profile"
+
 #: templates/search_results/sentence_header.html:20
 msgid "Full text (opens in a new tab)"
 msgstr "Full text (opens in a new tab)"
@@ -776,3 +797,14 @@ msgstr "no context"
 msgid "Show links to the local copy of the corpus"
 msgstr "Show links to the local copy of the corpus"
 
+msgid "ipm"
+msgstr "ipm"
+
+msgid "What is IPM?"
+msgstr "What is IPM?"
+
+msgid "IPM_explanation"
+msgstr "IPM stands for &ldquo;items per million&rdquo;, i.e., the number of words that you can expect to match your query in a corpus of one million words. This is known as <em>relative frequency</em>. Relative frequencies are usually preferable to absolute frequencies in papers because they facilitate comparison between subcorpora, different corpora, and languages. After all, ten occurrences in a thousand-word corpus is very different from ten occurrences in a billion-word corpus. IPM makes sense for one-word queries. Here, the IPM value is calculated by dividing the number of words found by the total size of the (sub)corpus you are searching in, multiplied by one million. The subcorpus is defined as all sentences that conform to your metadata criteria. If you did not select a subcorpus or fill any sentence-level metadata boxes, the relative frequency for the entire corpus is calculated."
+
+msgid "Current subcorpus size: "
+msgstr "Current (sub)corpus size: "

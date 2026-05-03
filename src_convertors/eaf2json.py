@@ -339,7 +339,8 @@ class Eaf2JSON(Txt2JSON):
                                 elif type(totalAna[k]) == list and ana[k] not in totalAna[k]:
                                     totalAna[k].append(ana[k])
                         else:
-                            if len(totalAna[k]) > 0 and k not in ['parts', 'gloss']:
+                            if (len(totalAna[k]) > 0 and (k != 'parts' and not ('hyphens_in_gloss' in self.corpusSettings
+                                    and self.corpusSettings['hyphens_in_gloss'] and k == 'gloss'))):
                                 totalAna[k] += '-'
                             if k not in ana:
                                 totalAna[k] += '∅'
@@ -864,6 +865,7 @@ class Eaf2JSON(Txt2JSON):
         self.clean_up_sentences(textJSON['sentences'])
         if 'capitalize_sentences' in self.corpusSettings and self.corpusSettings['capitalize_sentences']:
             self.tp.splitter.capitalize_sentences(textJSON['sentences'])
+        self.tp.splitter.prepare_kw_word_fields(textJSON['sentences'])
         self.write_output(fnameTarget, textJSON)
         return nTokens, nWords, nAnalyzed
 

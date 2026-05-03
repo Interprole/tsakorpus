@@ -47,7 +47,8 @@ class InterfaceQueryParser:
                                and f not in settings.sentence_meta]
         kwMetaFields = [f + '_kw' for f in self.docMetaFields
                         if not f.startswith('year')
-                        and f not in self.settings.integer_meta_fields]
+                        and f not in self.settings.integer_meta_fields
+                        and f not in self.settings.non_kw_meta_fields]
         self.docMetaFields += kwMetaFields
         self.rxWordIndexQueryFields = re.compile('^(?:sent_meta_.+|' + '|'.join(
             re.escape(awf) + '.*' for awf in settings.accidental_word_fields) + ')$')
@@ -61,8 +62,9 @@ class InterfaceQueryParser:
     def find_operator(strQuery, start=0, end=-1, glossField=False):
         if end == -1:
             end = len(strQuery) - 1
+        bStartsWithNeg = False
         if strQuery[start] == '~':
-            return start, '~'
+            bStartsWithNeg = True
         parenthBalance = 0
         inCurlyBrackets = False
         for i in range(start, end):
@@ -80,6 +82,8 @@ class InterfaceQueryParser:
                 parenthBalance -= 1
             elif parenthBalance == 0 and strQuery[i] in ',&|':
                 return i, strQuery[i]
+        if bStartsWithNeg:
+            return start, '~'
         return -1, ''
 
     def make_gloss_query_src_part(self, text, lang):
@@ -813,12 +817,15 @@ class InterfaceQueryParser:
                     k = 'meta.' + k[10:]
                     if k.endswith('_kw'):
                         boolQuery = self.make_bool_query(v, k, lang=lang, keyword_query=True)
-                    elif (k.endswith('__to')
-                          and k[5:len(k)-4] in self.settings.integer_meta_fields) or k == 'meta.year__to':
+                    elif (k.endswith('__to') and k[5:len(k)-4] in self.settings.integer_meta_fields):
                         boolQuery = self.make_range_query([None, v], k[:-4])
+                    elif k == 'meta.year_to':
+                        boolQuery = self.make_range_query([None, v], k)
                     elif (k.endswith('__from')
-                          and k[5:len(k)-6] in self.settings.integer_meta_fields) or k == 'meta.year__from':
+                          and k[5:len(k)-6] in self.settings.integer_meta_fields):
                         boolQuery = self.make_range_query([v, None], k[:-6])
+                    elif k == 'meta.year_from':
+                        boolQuery = self.make_range_query([v, None], k)
                     else:
                         boolQuery = self.make_bool_query(v, k, lang=lang)
                     if 'match_none' not in boolQuery:
@@ -1056,7 +1063,8 @@ class InterfaceQueryParser:
                 and int(htmlQuery['sentence_index1']) != 0):
             searchIndex = 'sentences'
         elif any(k.startswith('sent_meta_')
-                 and len(htmlQuery[k]) > 0 and htmlQuery[k] not in ('*', '.*')
+                 and (type(htmlQuery[k]) == int
+                      or (len(htmlQuery[k]) > 0 and htmlQuery[k] not in ('*', '.*')))
                  for k in htmlQuery):
             searchIndex = 'sentences'
         elif any(self.rxWordIndexQueryFields.search(k) is not None
@@ -1086,7 +1094,9 @@ class InterfaceQueryParser:
                     # Rewrite a document-level constraint as a sentence-level constraint
                     # on the first query word.
                     # If the value is not numerical, search in the XXX_kw field.
-                    if not (k.startswith('year') or k in self.settings.integer_meta_fields):
+                    if not (k.startswith('year')
+                            or k in self.settings.integer_meta_fields
+                            or k in self.settings.non_kw_meta_fields):
                         k += '_kw1'
                     else:
                         k += '1'
@@ -1108,7 +1118,7 @@ class InterfaceQueryParser:
                 distances=None, includeNextWordField=False,
                 after_key=None, highlight=True):
         """
-        Make and return a ES query out of the HTML form data.
+        Make and return an ES query out of the HTML form data.
         """
         query_from, langID, lang, searchIndex =\
             self.check_html_parameters(htmlQuery, page, query_size, searchOutput)

@@ -76,6 +76,18 @@ class Splitter:
 
         # Now, shift all character offsets in source alignment etc.
         for segType in ['src_alignment', 'para_alignment', 'style_spans']:
+            if segType in sentenceL:
+                leftmostSeg = None
+                leftmostSegOffEnd = -1
+                for seg in sentenceL[segType]:
+                    for key in ['off_end', 'off_end_sent']:
+                        if key in seg and seg[key] > leftmostSegOffEnd:
+                            leftmostSegOffEnd = seg[key]
+                            leftmostSeg = seg
+                if leftmostSeg is not None:
+                    for key in ['off_end', 'off_end_sent']:
+                        if key in leftmostSeg:
+                            leftmostSeg[key] += nSpacesBetween  # Add the spaces to the left segments
             if segType in sentenceR:
                 if segType not in sentenceL:
                     sentenceL[segType] = []
@@ -179,7 +191,7 @@ class Splitter:
 
     def add_speaker_marks(self, sentences):
         """
-        Add the name/code of the speaker in the beginning of every
+        Add the name/code of the speaker at the beginning of every
         sentence that starts the turn.
         """
         if 'insert_speaker_marks' in self.settings and not self.settings['insert_speaker_marks']:
@@ -227,6 +239,13 @@ class Splitter:
                     for ss in sentences[i]['style_spans']:
                         ss['off_start'] += addOffset
                         ss['off_end'] += addOffset
+                if 'style_spans' not in sentences[i]:
+                    sentences[i]['style_spans'] = []
+                sentences[i]['style_spans'].append({
+                    'off_start': sentences[i]['words'][1]['off_start'],
+                    'off_end': sentences[i]['words'][1]['off_end'],
+                    'span_class': 'speaker_mark'
+                })
             prevSpeaker = sentences[i]['meta']['speaker']
             if 'last' in sentences[i] and sentences[i]['last']:
                 prevSpeaker = ''
@@ -279,6 +298,55 @@ class Splitter:
         """
         for s in sentences:
             self.add_contextual_flags_sentence(s)
+
+    def prepare_kw_word_fields(self, sentences):
+        """
+        For string word field values that have to be stored as keywords,
+        perform tokenization per rules set in conversion_settings.json.
+        If multiple tokens emerge, store them as a list.
+        """
+        tokenizers = {}
+        if 'kw_word_field_tokenize' in self.settings:
+            tokenizers = self.settings['kw_word_field_tokenize']
+        else:
+            return
+        if len(tokenizers) <= 0:
+            return
+        for field in tokenizers:
+            if 'tokens' in tokenizers[field]:
+                tokenizers[field]['tokens'] = re.compile(tokenizers[field]['tokens'])
+            if 'subtokens' in tokenizers[field]:
+                tokenizers[field]['subtokens'] = re.compile(tokenizers[field]['subtokens'])
+
+        for s in sentences:
+            words = s['words']
+            for i in range(len(words)):
+                if words[i]['wtype'] != 'word' or 'ana' not in words[i]:
+                    continue
+                for ana in words[i]['ana']:
+                    for field in [_ for _ in ana.keys()]:
+                        if field not in tokenizers:
+                            continue
+                        tokenizer = tokenizers[field]
+                        values = ana[field]
+                        if type(values) is str:
+                            values = [values]
+                        newValues = []
+                        for v in values:
+                            if 'tokens' in tokenizer:
+                                for t in tokenizer['tokens'].findall(v):
+                                    if t not in newValues:
+                                        newValues.append(t)
+                                    if 'subtokens' in tokenizer:
+                                        for subt in tokenizer['subtokens'].findall(t):
+                                            if subt not in newValues:
+                                                newValues.append(subt)
+                        if len(newValues) <= 0:
+                            newValues = ''
+                        elif len(newValues) == 1:
+                            newValues = newValues[0]
+                        ana[field + '_display'] = ana[field]
+                        ana[field] = newValues
 
     def resegment_sentences(self, sentences):
         """

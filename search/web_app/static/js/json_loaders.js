@@ -356,10 +356,13 @@ function assign_input_events() {
 	$('#query_load_ok').unbind('click');
 	$('#display_settings_ok').unbind('click');
 	$("#error_report_ok").unbind('click');
+	$('#lex_profile_ok').unbind('click');
+	$('#paradigm_ok').unbind('click');
 	$('.toggle_glossed_layer').unbind('click');
 	$('.toggle_lang').unbind('click');
 	$(".tier_select").unbind('change');
 	$(".search_from_ana").unbind('click');
+	$("#ipm_count").unbind('click');
 	$(".word_plus").click(add_word_inputs);
 	$(".word_minus").click(del_word_inputs);
 	$(".word_expand").click(expand_word_input);
@@ -384,10 +387,13 @@ function assign_input_events() {
 	$('#query_load_ok').click(load_query);
 	$('#display_settings_ok').click(hide_settings);
 	$("#error_report_ok").click(send_error_report);
+	$('#lex_profile_ok').click(lex_profile_ok);
+	$('#paradigm_ok').click(paradigm_ok);
 	$('.toggle_glossed_layer').click(toggle_glossed_layer);
 	$('.toggle_lang').click(toggle_lang);
 	$(".tier_select").change(change_tier);
 	$(".search_from_ana").click(search_word_from_ana);
+	$("#ipm_count").click(show_ipm_explanation);
 	assign_tooltips();
 	initialize_keyboards();
 	assign_autocomplete();
@@ -580,9 +586,15 @@ function gramm_gloss_selector_loaded(result) {
 	$("#gramm_selector_ok").click(gram_selector_ok);
 }
 
-function assign_dictionary_events(){
+function assign_dictionary_events() {
 	$(".dictionary_lemma").unbind("click");
 	$(".dictionary_lemma").click(input_lemma);
+	$(".lex_profile_link").unbind("click");
+	$(".lex_profile_link").click(show_lex_profile);
+	$(".lex_profile_l").unbind("click");
+	$(".lex_profile_l").click(show_lex_profile);
+	$(".paradigm_l").unbind("click");
+	$(".paradigm_l").click(show_paradigm);
 }
 
 function input_lemma(e) {
@@ -591,10 +603,58 @@ function input_lemma(e) {
 	$('#gr1').val($(e.target).next().html().replace(" ", ""));
 }
 
+function show_lex_profile(e) {
+	e.preventDefault();
+	let url = $(e.target).attr("href");
+	if (typeof url === 'undefined' || url === false) {
+		url = $(e.target).attr("data-href");
+	}
+	$.ajax({
+		url: url,
+		type: "GET",
+		success: function(result) {
+			$('#lex_profile_body').html(result);
+			$('#lex_profile').modal('show');
+		},
+		error: function(errorThrown) {
+			alert( JSON.stringify(errorThrown) );
+		}
+	});
+}
+
+function show_paradigm(e) {
+	e.preventDefault();
+	let url = $(e.target).attr("href");
+	if (typeof url === 'undefined' || url === false) {
+		url = $(e.target).attr("data-href");
+	}
+	$.ajax({
+		url: url,
+		type: "GET",
+		success: function(result) {
+			$('#paradigm_body').html(result);
+			$('#paradigm').modal('show');
+		},
+		error: function(errorThrown) {
+			alert( JSON.stringify(errorThrown) );
+		}
+	});
+}
+
 function gram_selector_ok(e) {
 	var field = '#' + $('#gram_selector').attr('data-field');
 	$(field).val($('#gramm_gloss_query_viewer').text());
 	$('#gram_selector').modal('toggle');
+}
+
+function lex_profile_ok(e) {
+	$('#lex_profile_body').html("");
+	$('#lex_profile').modal("hide");
+}
+
+function paradigm_ok(e) {
+	$('#paradigm_body').html("");
+	$('#paradigm').modal("hide");
 }
 
 function change_locale(e) {
@@ -631,6 +691,9 @@ async function search_if_query() {
 }
 
 function send_error_report() {
+	if ($("#error_report_reference").prop('required') && !$("#error_report_reference").val()) {
+		return;
+	}
 	$.ajax({
 		url: "report_error",
 		data: $("#error_report_form").serialize(),
