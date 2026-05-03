@@ -42,9 +42,11 @@ class CorpusSettings:
         self.viewable_meta = []
         self.subcorpora = {}
         self.word_fields = []
+        self.partial_word_fields = []
         self.search_meta = {'columns': [], 'stat_options': []}
         self.ambiguous_analyses = True
         self.keep_lemma_order = False
+        self.ambiguous_lemma_multiple_count = False
         self.bibref = {}
 
         # Indexation and search options
@@ -65,6 +67,8 @@ class CorpusSettings:
         self.max_hits_retrieve = 10000      # Increasing this value will have no effect unless you also reconfigure Elasticsearch
         self.query_timeout = 60
         self.max_suggestions = 8
+        self.max_stats_values = 25
+        self.exclude_by_meta = []
 
         # Interface options and tools
         self.interface_languages = ['en', 'ru']
@@ -78,6 +82,7 @@ class CorpusSettings:
         self.line_plot_meta = ['year']    # metadata fields whose statistics can be displayed on a line plot
         self.multiple_choice_fields = {}
         self.integer_meta_fields = []
+        self.non_kw_meta_fields = []
         self.word_table_fields = []
         self.lemma_table_fields = []
         self.default_values = {}
@@ -93,8 +98,10 @@ class CorpusSettings:
         self.documentation_url = None
         self.share_query_url = False
         self.error_reports_enabled = False
+        self.error_reports_name_obligatory = False
         self.inel_exmaralda_links = False
         self.default_context_size = 0
+        self.show_info_alert = False
 
         # DOCX parameters for saved examples
         self.docx_enabled = False
@@ -137,7 +144,7 @@ class CorpusSettings:
         # Server configuration
         self.session_cookie_domain = None
         self.query_log = True
-        self.try_restart_elastic = True     # Try restarting elasticsearch.service if it is down
+        self.try_restart_elastic = False     # Try restarting elasticsearch.service if it is down
 
         # Statistics calculated at runtime
         self.corpus_size = 0             # corpus size in words, only counting primary language(s)
@@ -161,11 +168,13 @@ class CorpusSettings:
             'localized_meta_values',
             'case_sensitive_meta_fields',
             'word_fields',
+            'partial_word_fields',
             'interface_languages',
             'transliterations',
             'input_methods',
             'line_plot_meta',
             'integer_meta_fields',
+            'non_kw_meta_fields',
             'word_table_fields',
             'lemma_table_fields',
             'accidental_word_fields',
@@ -304,6 +313,66 @@ class CorpusSettings:
                 if k in self.lang_props[lang]:
                     v = self.lang_props[lang][k]
                     self.lang_props[lang][k] = re.compile(v)
+
+        # Compile regexes, fill missing values for generating paradigms
+        for lang in self.lang_props:
+            if 'paradigm_templates' in self.lang_props[lang]:
+                for i in range(len(self.lang_props[lang]['paradigm_templates'])):
+                    # Compile regexes
+                    if 'regex_grdic' in self.lang_props[lang]['paradigm_templates'][i]:
+                        v = self.lang_props[lang]['paradigm_templates'][i]['regex_grdic']
+                        self.lang_props[lang]['paradigm_templates'][i]['regex_grdic'] = re.compile(v)
+                    else:
+                        self.lang_props[lang]['paradigm_templates'][i]['regex_grdic'] = re.compile('.*')
+                    if 'tables' not in self.lang_props[lang]['paradigm_templates'][i]:
+                        self.lang_props[lang]['paradigm_templates'][i]['tables'] = []
+
+                    # Make sure there are gramm and title values for each paradigm table set
+                    for iTable in range(len(self.lang_props[lang]['paradigm_templates'][i]['tables'])):
+                        if 'gramm' not in self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]:
+                            self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['gramm'] = ''
+                        if 'title' not in self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]:
+                            self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['title'] =\
+                                copy.deepcopy(self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['gramm'])
+
+                        # Gramm values and corresponding titles can be lists (if the same table structure
+                        # is employed for several category values) or single strings in corpus.json. Turn
+                        # them to lists so that they are never stored as single strings.
+                        if type(self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['gramm']) is str:
+                            self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['gramm'] =\
+                                [self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['gramm']]
+                        if type(self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['title']) is str:
+                            self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['title'] =\
+                                [self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['title']]
+
+                        # Make sure there is at least one row and one column.
+                        if 'rows' not in self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]:
+                            self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['rows'] = [
+                                {
+                                    'gramm': '',
+                                    'title': ''
+                                }
+                            ]
+                        if 'columns' not in self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]:
+                            self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['columns'] = [
+                                {
+                                    'gramm': '',
+                                    'title': ''
+                                }
+                            ]
+
+                        # Make sure there is a gramm value in each row/column. If there is title provided,
+                        # use that value as the title.
+                        for row in self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['rows']:
+                            if 'gramm' not in row:
+                                row['gramm'] = ''
+                            if 'title' not in row:
+                                row['title'] = row['gramm']
+                        for col in self.lang_props[lang]['paradigm_templates'][i]['tables'][iTable]['columns']:
+                            if 'gramm' not in col:
+                                col['gramm'] = ''
+                            if 'title' not in col:
+                                col['title'] = col['gramm']
 
     def as_dict(self):
         """

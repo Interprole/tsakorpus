@@ -268,6 +268,7 @@ class Txt2JSON:
                         continue
                     self.add_coma_key_to_meta(curMetaDict, descrKey, fname)
             if len(fname) > 0:
+                fname = fname.replace('\\', '/')
                 if 'title' not in curMetaDict:
                     if len(title) > 0:
                         curMetaDict['title'] = title
@@ -317,7 +318,7 @@ class Txt2JSON:
         only the filename field.
         """
         fname2check = fname
-        curMeta = {'filename': fname}
+        curMeta = {'filename': fname.replace('\\', '/')}
         if not self.corpusSettings['meta_files_dir']:
             fname2check = self.rxStripDir.sub('', fname2check)
         elif fname2check.startswith(os.path.join(self.corpusSettings['corpus_dir'], self.srcExt)):
@@ -365,6 +366,7 @@ class Txt2JSON:
         fSrc.close()
 
         textJSON['sentences'], nTokens, nWords, nAnalyze = self.tp.process_string(text)
+        self.tp.splitter.prepare_kw_word_fields(textJSON['sentences'])
         self.write_output(fnameTarget, textJSON)
         return nTokens, nWords, nAnalyze
 

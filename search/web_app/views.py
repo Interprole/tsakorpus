@@ -4,6 +4,8 @@ Contains Flask view functions associated with certain URLs.
 
 
 from flask import request, render_template, jsonify, send_from_directory
+from jinja2.exceptions import TemplateNotFound
+from urllib.parse import unquote
 import json
 import copy
 import re
@@ -13,7 +15,7 @@ import shutil
 import uuid
 import xlsxwriter
 from werkzeug.utils import secure_filename
-from . import app, settings, sc, sentView, MAX_PAGE_SIZE, docxex
+from . import app, settings, sc, sentView, MAX_PAGE_SIZE, docxex, rxJinjaBadPercent
 from .session_management import get_locale, get_session_data, change_display_options, set_session_data
 from .auxiliary_functions import process_request_cookies, jsonp, gzipped, nocache, lang_sorting_key, copy_request_args,\
     distance_constraints_too_complex, remove_sensitive_data, log_query
@@ -24,6 +26,35 @@ from .search_pipelines import *
 def favicon():
     return send_from_directory(os.path.join(app.root_path, 'static/favicons'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+
+@app.route('/')
+@app.route('/start')
+def landing():
+    ready4work = settings.ready_for_work
+    if settings.ready_for_work:
+        ready4work = sc.is_alive()
+    locales = settings.interface_languages
+    if type(locales) == list:
+        locales = {x: x for x in locales}
+    try:
+        return render_template('landing/index_' + get_locale() + '.html',
+                               ready_for_work=ready4work,
+                               locale=get_locale(),
+                               corpus_name=settings.corpus_name,
+                               documentation_url=settings.documentation_url,
+                               locales=locales,
+                               corpus_size=round(settings.corpus_size),
+                               corpus_size_total=round(settings.corpus_size_total))
+    except TemplateNotFound:
+        return render_template('landing/index.html',
+                               ready_for_work=ready4work,
+                               locale=get_locale(),
+                               corpus_name=settings.corpus_name,
+                               documentation_url=settings.documentation_url,
+                               locales=locales,
+                               corpus_size=round(settings.corpus_size),
+                               corpus_size_total=round(settings.corpus_size_total))
 
 
 @app.route('/search')
@@ -86,6 +117,7 @@ def search_page():
                            hidden_tiers=get_session_data('hidden_tiers'),
                            share_query_url=str(settings.share_query_url).lower(),
                            error_reports_enabled=settings.error_reports_enabled,
+                           error_reports_name_obligatory=settings.error_reports_name_obligatory,
                            docx_enabled=settings.docx_enabled,
                            docx_tabular=settings.docx_tabular,
                            docx_glossed=settings.docx_glossed,
@@ -104,12 +136,14 @@ def search_page():
                            default_view=settings.default_view,
                            max_request_time=settings.query_timeout + 1,
                            max_page_size=MAX_PAGE_SIZE,
+                           max_stats_values=settings.max_stats_values,
                            max_context_expand=settings.max_context_expand,
                            default_context_size=settings.default_context_size,
                            inel_exmaralda_links=settings.inel_exmaralda_links,
                            locales=locales,
                            random_seed=get_session_data('seed'),
-                           query_string=queryString)
+                           query_string=queryString,
+                           show_info_alert=settings.show_info_alert)
 
 
 @app.route('/search_sent_query/<int:page>')
@@ -310,6 +344,9 @@ def get_word_freq_stats(searchType='word'):
                 bucket['n_words'] = prevFreq / freq_by_rank[langID][freqRank]
             buckets.append(bucket)
         results.append(buckets)
+    for iWord in range(len(results)):
+        for iValue in range(len(results[iWord])):
+            results[iWord][iValue]['n_value'] = iValue
     return jsonify(results)
 
 
@@ -374,6 +411,9 @@ def get_word_stats(searchType, metaField):
     results = get_word_buckets(searchType, metaField, nWords, htmlQuery,
                                queryWordConstraints, langID, searchIndex,
                                curLocale=get_locale())
+    for iWord in range(len(results)):
+        for iValue in range(len(results[iWord])):
+            results[iWord][iValue]['n_value'] = iValue
     return jsonify(results)
 
 
@@ -418,11 +458,11 @@ def search_sent(page=-1):
 
     if request.args and 'response_format' in request.args and request.args['response_format'] == 'json':
         return jsonify(hitsProcessed)
-
     return render_template('search_results/result_sentences.html',
                            data=hitsProcessed,
                            max_page_number=maxPageNumber,
                            error_reports_enabled=settings.error_reports_enabled,
+                           error_reports_name_obligatory=settings.error_reports_name_obligatory,
                            docx_enabled=settings.docx_enabled,
                            expanded_contexts=contexts)
 
@@ -465,6 +505,10 @@ def search_word(searchType='word', page=-1):
     bShowNextButton = True
     if 'words' not in hitsProcessed or len(hitsProcessed['words']) != get_session_data('page_size'):
         bShowNextButton = False
+    bShowParadigms = False
+    if (hitsProcessed['lang'] in settings.lang_props
+            and 'paradigm_templates' in settings.lang_props[hitsProcessed['lang']]):
+        bShowParadigms = True
     return render_template('search_results/result_words.html',
                            data=hitsProcessed,
                            word_table_fields=settings.word_table_fields,
@@ -473,7 +517,8 @@ def search_word(searchType='word', page=-1):
                            display_freq_rank=settings.display_freq_rank,
                            search_type=searchType,
                            page=get_session_data('page'),
-                           show_next=bShowNextButton)
+                           show_next=bShowNextButton,
+                           show_paradigms=bShowParadigms)
 
 
 @app.route('/invert_subcorpus')
@@ -552,6 +597,7 @@ def get_word_fields():
     """
     return render_template('index/common_additional_search_fields.html',
                            word_fields=settings.word_fields,
+                           partial_word_fields=settings.partial_word_fields,
                            sentence_meta=settings.sentence_meta,
                            multiple_choice_fields=settings.multiple_choice_fields,
                            int_meta_fields=settings.integer_meta_fields,
@@ -573,7 +619,7 @@ def send_image(path):
     """
     Return the requested image file.
     """
-    return send_from_directory(os.path.join('../img', settings.corpus_name), path)
+    return send_from_directory(os.path.join('../img', settings.corpus_name), unquote(path))
 
 
 @app.route('/docs/<doc_fname>')
@@ -834,7 +880,13 @@ def get_gramm_selector(lang=''):
     """
     if lang not in settings.lang_props or 'gramm_selection' not in settings.lang_props[lang]:
         return ''
-    grammSelection = settings.lang_props[lang]['gramm_selection']
+    grammSelection = copy.deepcopy(settings.lang_props[lang]['gramm_selection'])
+    for iCol in range(len(grammSelection['columns'])):
+        for iTag in range(len(grammSelection['columns'][iCol])):
+            for f in ('value', 'tooltip'):
+                if f in grammSelection['columns'][iCol][iTag]:
+                    grammSelection['columns'][iCol][iTag][f] =\
+                        rxJinjaBadPercent.sub('&percnt;', grammSelection['columns'][iCol][iTag][f])
     return render_template('modals/select_gramm.html', tag_table=grammSelection)
 
 
@@ -857,7 +909,47 @@ def get_gloss_selector(lang=''):
     if lang not in settings.lang_props or 'gloss_selection' not in settings.lang_props[lang]:
         return ''
     glossSelection = settings.lang_props[lang]['gloss_selection']
+    for iCol in range(len(glossSelection['columns'])):
+        for iTag in range(len(glossSelection['columns'][iCol])):
+            for f in ('value', 'tooltip'):
+                if f in glossSelection['columns'][iCol][iTag]:
+                    glossSelection['columns'][iCol][iTag][f] =\
+                        rxJinjaBadPercent.sub('&percnt;', glossSelection['columns'][iCol][iTag][f])
     return render_template('modals/select_gloss.html', glosses=glossSelection)
+
+
+@app.route('/get_lex_profile/<lang>/<lID>')
+def get_lex_profile(lang='', lID='l0'):
+    """
+    Return HTML of the lexical profile dialogue for the given lemma.
+    """
+    if lang not in settings.lang_props or 'lex_profile_categories' not in settings.lang_props[lang]:
+        return ''
+    lex = get_lexeme_by_id(lID)
+    categories = copy.deepcopy(settings.lang_props[lang]['lex_profile_categories'])
+    lexFields = []
+    if 'lexical_fields' in settings.lang_props[lang]:
+        lexFields = copy.deepcopy(settings.lang_props[lang]['lexical_fields'])
+    for c in categories:
+        categories[c].append('_other')
+    return render_template('modals/lex_profile.html',
+                           lex=lex, categories=categories, lex_fields=lexFields)
+
+
+@app.route('/get_paradigm/<lang>/<lID>')
+def get_paradigm(lang='', lID='l0'):
+    """
+    Return HTML of the paradigm modal for the given lemma.
+    """
+    if lang not in settings.lang_props or 'paradigm_templates' not in settings.lang_props[lang]:
+        return ''
+    paradigmData = get_paradigm_by_id(lID, lang, settings.lang_props[lang]['paradigm_templates'])
+    lexFields = []
+    if 'lexical_fields' in settings.lang_props[lang]:
+        lexFields = copy.deepcopy(settings.lang_props[lang]['lexical_fields'])
+    return render_template('modals/paradigm.html',
+                           data=paradigmData,
+                           lexFields=lexFields)
 
 
 @app.route('/get_glossed_sentence/<int:n>')

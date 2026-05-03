@@ -191,7 +191,16 @@ msgid "Language/tier:"
 msgstr "Langue/couche :"
 
 msgid "Languages / tiers:"
-msgstr "Languages / couches:"
+msgstr "Langues / couches :"
+
+msgid "Add. word-level annotation"
+msgstr "Annotation suppl. / mots"
+
+msgid "Sentence-level annotation"
+msgstr "Annotation / phrase"
+
+msgid "Only annotated in some texts"
+msgstr "N'apparaît que dans certains textes"
 
 #: templates/index/query_area.html:36
 #: templates/modals/subcorpus_selection.html:58
@@ -437,7 +446,10 @@ msgstr "Paramètre : "
 #: templates/modals/subcorpus_selection.html:71
 #: templates/modals/word_stats.html:28
 msgid "A maximum of 25 metadata values can be displayed, sorted by the number of words in the relevant texts."
-msgstr "Un maximum de 25 valeurs peuvent être affichées, triées en fonction du nombre de mots dans les textes concernés."
+msgstr "Un maximum de 25 valeurs peuvent être affichées dans le graphique, triées en fonction du nombre de mots dans les textes concernés."
+
+msgid "Maximal number of values to be displayed: "
+msgstr "Nombre maximal de valeurs à afficher : "
 
 #: templates/modals/subcorpus_selection.html:73
 #: templates/modals/word_stats.html:81
@@ -580,6 +592,9 @@ msgstr "1%%"
 #, python-format
 msgid "0.1%%"
 msgstr "0.1%%"
+
+msgid "Download this plot in PNG"
+msgstr "Télécharger ce graphique au format PNG"
 
 #: templates/search_results/lemma_table_row.html:16
 #: templates/search_results/word_table_row.html:20
@@ -735,6 +750,12 @@ msgstr "chercher"
 #: templates/search_results/result_words.html:51
 msgid "word_th_word stats"
 msgstr "statistiques"
+
+msgid "word_th_lex_profile"
+msgstr "profil du lexème"
+
+msgid "Lexical profile"
+msgstr "Profil du lexème"
 
 #: templates/search_results/sentence_header.html:20
 msgid "Full text (opens in a new tab)"

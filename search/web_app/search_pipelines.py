@@ -3,8 +3,8 @@ High-level functions that handle user queries by transforming
 them into series of ES queries using the query parser and
 processing the hits using response_processors.
 """
-
-
+import base64
+import json
 import copy
 import math
 import re
@@ -154,10 +154,11 @@ def get_buckets_for_doc_metafield(fieldName, langID=-1, docIDs=None, maxBuckets=
         buckets.sort(key=lambda b: (-b['n_words'], -b['n_docs'], b['name']))
     else:
         buckets.sort(key=lambda b: b['name'])
-    if len(buckets) > 25 and not (fieldName.startswith('year') or fieldName in settings.integer_meta_fields):
-        bucketsFirst = buckets[:25]
+    if (len(buckets) > settings.max_stats_values
+            and not (fieldName.startswith('year') or fieldName in settings.integer_meta_fields)):
+        bucketsFirst = buckets[:settings.max_stats_values]
         lastBucket = {'name': '>>', 'n_docs': 0, 'n_words': 0}
-        for i in range(25, len(buckets)):
+        for i in range(settings.max_stats_values, len(buckets)):
             lastBucket['n_docs'] += buckets[i]['n_docs']
             lastBucket['n_words'] += buckets[i]['n_words']
         bucketsFirst.append(lastBucket)
@@ -354,10 +355,11 @@ def get_buckets_for_sent_metafield(fieldName, langID=-1, docIDs=None, maxBuckets
         buckets.sort(key=lambda b: (-b['n_words'], -b['n_sents'], b['name']))
     else:
         buckets.sort(key=lambda b: b['name'])
-    if len(buckets) > 25 and not (fieldName.startswith('year') or fieldName in settings.integer_meta_fields):
-        bucketsFirst = buckets[:25]
+    if (len(buckets) > settings.max_stats_values
+            and not (fieldName.startswith('year') or fieldName in settings.integer_meta_fields)):
+        bucketsFirst = buckets[:settings.max_stats_values]
         lastBucket = {'name': '>>', 'n_sents': 0, 'n_words': 0}
-        for i in range(25, len(buckets)):
+        for i in range(settings.max_stats_values, len(buckets)):
             lastBucket['n_sents'] += buckets[i]['n_sents']
             lastBucket['n_words'] += buckets[i]['n_words']
         bucketsFirst.append(lastBucket)
@@ -376,6 +378,7 @@ def get_word_buckets(searchType, metaField, nWords, htmlQuery,
     bLocalized = False
     bSentenceLevel = (metaField in settings.sentence_meta or metaField in settings.doc_to_sentence_meta)
     if bSentenceLevel:
+        searchIndex = 'sentences'
         queryFieldName = 'sent_meta_' + metaField
         if not (metaField.startswith('year') or metaField in settings.integer_meta_fields):
             queryFieldName += '_kw'
@@ -557,6 +560,19 @@ def count_occurrences(query, distances=None, partition=0):
         return int(math.floor(hits['aggregations']['agg_nwords']['sum']))
     return 0
 
+def subcorpus_size(query):
+    """
+    Calculate the size of a subcorpus defined by document- and sentence-level metadata,
+    without taking into account any word-level parts of the query.
+    """
+    query = {
+        re.sub('[0-9]+$', '1', k): v for k, v in query.items() if ((k.startswith('sent_meta_')
+                                                                    or k in settings.viewable_meta
+                                                                    or k in ('sent_ids', 'doc_ids', 'lang1'))
+                                                                   and len(v) > 0 and v not in ('*', '.*'))
+    }
+    query['n_words'] = 1
+    return count_occurrences(query)
 
 def extrapolate_word_count(nWords, partition):
     return math.floor(nWords / settings.partition_sizes_words[partition - 1] * settings.corpus_size_total)
@@ -601,12 +617,17 @@ def find_sentences_json(page=0):
 
     nWords = 1
     negWords = []
+    showOccurrences = True
     if 'n_words' in query:
         nWords = int(query['n_words'])
         if nWords > 0:
             for iQueryWord in range(1, nWords + 1):
                 if 'negq' + str(iQueryWord) in query and query['negq' + str(iQueryWord)] == 'on':
                     negWords.append(iQueryWord)
+            if nWords > 1:
+                showOccurrences = False
+    if 'txt' in query and len(query['txt']) > 0:
+        showOccurrences = False
 
     docIDs = None           # IDs of subcorpus docs that should be taken into
                             # account when searching (i.e., those that are not
@@ -704,6 +725,7 @@ def find_sentences_json(page=0):
         # but we want it to be truly random at the step where the number of occurrences
         # is calculated.
     hits = sc.get_sentences(esQuery, partition=partition)
+    hits['subcorpus_size'] = subcorpus_size(query)
     if nWords > 1 and 'hits' in hits and 'hits' in hits['hits']:
         for hit in hits['hits']['hits']:
             sentView.filter_multi_word_highlight(hit, nWords=nWords, negWords=negWords)
@@ -730,6 +752,7 @@ def find_sentences_json(page=0):
             hit['toggled_on'] = sc.qp.wr.check_sentence(hit, wordConstraints, nWords=nWords)
     if subcorpusDocIDs is not None and len(subcorpusDocIDs) > 0:
         hits['subcorpus_enabled'] = True
+    hits['show_occurrences'] = showOccurrences
     return hits
 
 
@@ -758,6 +781,10 @@ def find_words_json(searchType='word', page=0):
     else:
         docIDs = query['doc_ids']
     subcorpus = (docIDs is not None)
+
+    lang = ''
+    if 'lang1' in query and query['lang1'] in settings.languages:
+        lang = query['lang1']
 
     searchIndex = 'words'
     sortOrder = get_session_data('sort')
@@ -806,7 +833,7 @@ def find_words_json(searchType='word', page=0):
                           distances=queryWordConstraints,
                           includeNextWordField=constraintsTooComplex,
                           after_key=cur_search_context().after_key)
-    # print(query)
+    # print(searchIndex, query)
 
     maxRunTime = time.time() + settings.query_timeout
     hitsProcessed = {}
@@ -876,9 +903,122 @@ def find_words_json(searchType='word', page=0):
 
     hitsProcessed['media'] = settings.media
     hitsProcessed['images'] = settings.images
+    hitsProcessed['lang'] = lang
     set_session_data('progress', 100)
     return hitsProcessed
 
+def get_lexeme_by_id(lID):
+    """
+    Return the data for one lexeme for the lexical profile modal.
+    """
+    hits = sc.get_word_by_id(lID)
+    if (len(hits) <= 0 or 'hits' not in hits
+            or 'hits' not in hits['hits']
+            or 'total' not in hits['hits']
+            or hits['hits']['total']['value'] <= 0):
+        return {'lemma': '(not found)', 'grdic': '', 'freq': 0}
+    lex = hits['hits']['hits'][0]['_source']
+    if 'lex_profile' in lex:
+        lex['lex_profile'] = json.loads(base64.b64decode(lex['lex_profile'].encode('utf-8')))
+    lex['subcorpora'] = {}
+    for subcorpus in settings.subcorpora:
+        lex['subcorpora'][subcorpus] = {}
+        if 'freq_' + subcorpus in lex:
+            lex['subcorpora'][subcorpus]['freq'] = lex['freq_' + subcorpus]
+    return lex
+
+def get_paradigm_cell(lID, lang, gramm):
+    query = {
+        'n_words': 1,
+        'lang1': lang,
+        'l_id1': lID,
+        'gr1': gramm
+    }
+    ESQuery = sc.qp.html2es(query,
+                            searchOutput='words',
+                            groupBy='word',
+                            sortOrder='freq',
+                            query_size=100)
+    hits = sc.get_words(ESQuery)
+    if ('hits' not in hits
+            or 'total' not in hits['hits']
+            or hits['hits']['total']['value'] <= 0):
+        return []
+    forms = []
+    wfs = set()
+    for iHit in range(len(hits['hits']['hits'])):
+        forms.append({
+            'wf': hits['hits']['hits'][iHit]['_source']['wf'],
+            'freq': hits['hits']['hits'][iHit]['_source']['freq']
+        })
+        if hits['hits']['hits'][iHit]['_source']['n_ana'] > 1:
+            forms[-1]['wf'] += '?'
+        wfs.add(forms[-1]['wf'])
+    forms = [{'wf': wf, 'freq': sum(wOrig['freq'] for wOrig in forms if wOrig['wf'] == wf)}
+             for wf in wfs]
+    forms.sort(key=lambda w: (-w['freq'], w['wf']))
+    return forms
+
+def get_paradigm_by_id(lID, lang, pts):
+    """
+    Return all paradigm forms for one lexeme, for the paradigm modal.
+    """
+    hits = sc.get_word_by_id(lID)
+    result = {
+        'lemma': '(not found)',
+        'grdic': '',
+        'freq': 0,
+        'paradigm': []
+    }
+    curPT = []
+    if (len(hits) <= 0 or 'hits' not in hits
+            or 'hits' not in hits['hits']
+            or 'total' not in hits['hits']
+            or hits['hits']['total']['value'] <= 0):
+        return result, []
+    lex = hits['hits']['hits'][0]['_source']
+    # print(lex)
+    result['lemma'] = lex['wf']
+    result['grdic'] = lex['grdic']
+    result['freq'] = lex['freq']
+    for pt in pts:
+        if pt['regex_grdic'].search(result['grdic']) is None:
+            continue
+        # v: a maximum of 3 layers of values or value combinations
+        for table in pt['tables']:
+            for iGramm in range(len(table['gramm'])):
+                result['paradigm'].append(
+                    {
+                        'title': table['title'][iGramm],
+                        'rows': [],
+                        'columns': [],
+                        'cells': []
+                    }
+                )
+                for col in table['columns']:
+                    result['paradigm'][-1]['columns'].append(col['title'])
+                for row in table['rows']:
+                    result['paradigm'][-1]['rows'].append(row['title'])
+                    result['paradigm'][-1]['cells'].append([])
+                    for col in table['columns']:
+                        result['paradigm'][-1]['cells'][-1].append('')
+                        queryGram = ''
+                        if len(table['gramm'][iGramm]) > 0:
+                            queryGram += '(' + table['gramm'][iGramm] + ')'
+                        if len(row['gramm']) > 0:
+                            if len(queryGram) > 0:
+                                queryGram += ','
+                            queryGram += '(' + row['gramm'] + ')'
+                        if len(col['gramm']) > 0:
+                            if len(queryGram) > 0:
+                                queryGram += ','
+                            queryGram += '(' + col['gramm'] + ')'
+                        vars = get_paradigm_cell(lID, lang, queryGram)
+                        result['paradigm'][-1]['cells'][-1][-1] = ' / '.join(v['wf'] + ' (' + str(v['freq']) + ')'
+                                                                             for v in vars)
+        break
+    # print(result)
+    return result
 
 def find_sent_context(curSentData, n):
     """

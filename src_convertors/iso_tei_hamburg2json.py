@@ -21,7 +21,16 @@ class ISO_TEI_Hamburg2JSON(Txt2JSON):
     rxFloat = re.compile('^[0-9]+(?:\\.[0-9]+)?$')
     rxTrailingZeroes = re.compile('^0+(?=[1-9])|\\.0+$')
     rxNonDigit = re.compile('[^0-9]+')
-    rxMCPOS = re.compile('^([^%#>:\\[\\]() ]+)(?:\\([^%#>:\\[\\] ]*\\))?(?:\\.\\[[^\\[\\]]*\\])?$')
+    rxMCPOS = re.compile('^([^%#>:\\[\\]()= ]+)(?:\\([^%#>:\\[\\] ]*\\))?(?:\\.\\[[^\\[\\]]*\\])?(?:=.*)?$')
+    rxTokenID = re.compile('^(TIE[0-9]+\\.e[0-9]+\\.(w|pc|inc|[0-9]))|'
+                           '^(w|pc|inc)')
+    rxWordID = re.compile('^(TIE[0-9]+\\.e[0-9]+\\.w)|'
+                          '^w')
+    rxMorphID = re.compile('^sc_.*_mb|'
+                           '^m')
+    rxIncID = re.compile('^inc')
+    rxPunctID = re.compile('^(TIE[0-9]+\\.e[0-9]+\\.(pc|[0-9]))|'
+                           '^pc')
     mediaExtensions = {'.wav', '.mp3', '.mp4', '.avi'}
     sentenceEndPunct = {'declarative': '.', 'interrogative': '?'}
     namespaces = {'tei': 'http://www.tei-c.org/ns/1.0',
@@ -148,8 +157,8 @@ class ISO_TEI_Hamburg2JSON(Txt2JSON):
                 wSpanTexts = [wSpan.text]
                 if wSpan.attrib['from'] != wSpan.attrib['to']:
                     # continue
-                    if (wSpan.attrib['from'].startswith(('w', 'pc', 'inc'))
-                            and wSpan.attrib['to'].startswith(('w', 'pc', 'inc'))):
+                    if (self.rxTokenID.search(wSpan.attrib['from']) is not None
+                            and self.rxTokenID.search(wSpan.attrib['to']) is not None):
                         # Some tiers, such as information structure, allow spans that include
                         # multiple words. In this case, assign the value to each of the words
                         # in the span in case of annotation tiers. However, if the tier is
@@ -183,11 +192,11 @@ class ISO_TEI_Hamburg2JSON(Txt2JSON):
                     wSpanText = wSpanTexts.pop(0)
                     if spanID.startswith('seg'):
                         continue
-                    elif spanID.startswith('w'):
+                    elif self.rxWordID.search(spanID) is not None:
                         wordID = spanID
-                    elif spanID.startswith('inc'):
+                    elif self.rxIncID.search(spanID) is not None:
                         wordID = spanID
-                    elif spanID.startswith('m'):
+                    elif self.rxMorphID.search(spanID) is not None:
                         wordID = self.morph2wordID[spanID][0]
                     else:
                         continue
@@ -410,6 +419,16 @@ class ISO_TEI_Hamburg2JSON(Txt2JSON):
         text = re.sub(' +\\([0-9]{1,4}(\\.[0-9]{1,4})?\\) *$', '', text)
         if self.curMeta is None:
             return text + ' (INEL)'
+        elif 'citation' in self.curMeta and self.rxEmptyValueComa.search(self.curMeta['citation']) is None:
+            text += ' (INEL / ' + self.curMeta['citation'] + ')'
+            text = text.strip()
+        elif ('archive_written' in self.curMeta
+              and self.rxEmptyValueComa.search(self.curMeta['archive_written']) is None
+              and ('published_in' not in self.curMeta
+                   or self.rxEmptyValueComa.search(self.curMeta['published_in']) is not None
+                   or self.curMeta['published_in'].lower() in ('not published', 'unpublished'))):
+            text += ' (INEL / ' + re.sub('^\\((.+)\\)$', '\\1', self.curMeta['archive_written']) + ')'
+            text = text.strip()
         elif 'published_in' in self.curMeta and self.rxEmptyValueComa.search(self.curMeta['published_in']) is None:
             text += ' (INEL / ' + self.curMeta['published_in'] + ')'
             text = text.strip()
@@ -487,6 +506,7 @@ class ISO_TEI_Hamburg2JSON(Txt2JSON):
                 word = {'wf': wordNode.text.strip(), 'wtype': 'punct'}
                 wordList.append(word)
                 self.wordsByID[wordID] = word
+                self.wordIDseq.append(wordID)
             elif wordNode.tag == self.pfx_tei + 'incident':
                 # Treat "incidents" as punctuation
                 # continue
@@ -724,9 +744,9 @@ class ISO_TEI_Hamburg2JSON(Txt2JSON):
         """
         print(fnameSrc)
         self.curMeta = self.get_meta(fnameSrc)
-        if len(self.curMeta) == 1:
-            curMeta = {'filename': fnameSrc, 'title': fnameSrc, 'author': '',
-                       'year_from': '1900', 'year_to': str(datetime.datetime.now().year)}
+        if self.curMeta is None or len(self.curMeta) == 1:
+            self.curMeta = {'filename': fnameSrc.replace('\\', '/'), 'title': fnameSrc, 'author': '',
+                            'year_from': '1900', 'year_to': str(datetime.datetime.now().year)}
 
         textJSON = {'meta': self.curMeta, 'sentences': []}
         nTokens, nWords, nAnalyzed = 0, 0, 0
@@ -756,6 +776,7 @@ class ISO_TEI_Hamburg2JSON(Txt2JSON):
         if 'add_contextual_flags' in self.corpusSettings and self.corpusSettings['add_contextual_flags']:
             self.tp.splitter.add_contextual_flags(textJSON['sentences'])
         self.tp.splitter.add_speaker_marks(textJSON['sentences'])
+        self.tp.splitter.prepare_kw_word_fields(textJSON['sentences'])
         self.write_output(fnameTarget, textJSON)
         for s in textJSON['sentences']:
             for word in s['words']:

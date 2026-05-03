@@ -193,6 +193,15 @@ msgstr "Язык/слой:"
 msgid "Languages / tiers:"
 msgstr "Языки / слои:"
 
+msgid "Add. word-level annotation"
+msgstr "Доп. разметка слов"
+
+msgid "Sentence-level annotation"
+msgstr "Разметка предложений"
+
+msgid "Only annotated in some texts"
+msgstr "Размечено не во всех текстах"
+
 #: templates/index/query_area.html:36
 #: templates/modals/subcorpus_selection.html:58
 msgid "langname_all"
@@ -437,7 +446,10 @@ msgstr "Параметр: "
 #: templates/modals/subcorpus_selection.html:71
 #: templates/modals/word_stats.html:28
 msgid "A maximum of 25 metadata values can be displayed, sorted by the number of words in the relevant texts."
-msgstr "Может быть показано максимум 25 значений, отсортированных по количеству слов в соответствующих текстах."
+msgstr "На графике может быть показано максимум 25 значений, отсортированных по количеству слов в соответствующих текстах."
+
+msgid "Maximal number of values to be displayed: "
+msgstr "Максимальное количество отображаемых значений: "
 
 #: templates/modals/subcorpus_selection.html:73
 #: templates/modals/word_stats.html:81
@@ -580,6 +592,9 @@ msgstr "1%%"
 #, python-format
 msgid "0.1%%"
 msgstr "0,1%%"
+
+msgid "Download this plot in PNG"
+msgstr "Скачать график в PNG"
 
 #: templates/search_results/lemma_table_row.html:16
 #: templates/search_results/word_table_row.html:20
@@ -745,6 +760,12 @@ msgstr "искать"
 msgid "word_th_word stats"
 msgstr "статистика"
 
+msgid "word_th_lex_profile"
+msgstr "профиль лексемы"
+
+msgid "Lexical profile"
+msgstr "Профиль лексемы"
+
 #: templates/search_results/sentence_header.html:20
 msgid "Full text (opens in a new tab)"
 msgstr "Полный текст (откроется в новой вкладке)"
@@ -785,3 +806,14 @@ msgstr "без контекста"
 msgid "Show links to the local copy of the corpus"
 msgstr "Показывать ссылки на локальные файлы корпуса"
 
+msgid "ipm"
+msgstr "ipm"
+
+msgid "What is IPM?"
+msgstr "Что такое IPM?"
+
+msgid "IPM_explanation"
+msgstr "IPM (items per million) означает число вхождений на миллион, т. е. ожидаемое количество соответствующих запросу слов в корпусе, содержащем один миллион словоупотреблений. Эта величина называется «относительной частотностью». В статьях предпочтительно указывать именно относительную, а не абсолютную частотность, поскольку она облегчает сравнение подкорпусов, разных корпусов и языков. Например, десять вхождений в корпусе из тысячи слов — это совсем не то же самое, что десять вхождений в миллиардном корпусе. IPM имеет смысл для запросов, состоящих из одного слова. Здесь IPM рассчитывается путём деления количества найденных слов на общий размер (под)корпуса, в котором производится поиск. Подкорпус здесь определяется как все предложения, соответствующие вашим ограничениям по метаданным. Если Вы не выбрали подкорпус и не заполняли поля метаданных на уровне предложения, то IPM рассчитывается для всего корпуса."
+
+msgid "Current subcorpus size: "
+msgstr "Размер (под)корпуса: "

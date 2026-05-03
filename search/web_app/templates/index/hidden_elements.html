@@ -26,6 +26,55 @@
 	</div>
 </div>
 
+<div class="modal fade" id="ipm_explanation_dialogue" tabindex="-1" role="dialog" aria-labelledby="ipm_explanation_dialogue_header" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="ipm_explanation_dialogue_header">{{ _('What is IPM?') }}</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+			</div>
+			<div class="modal-body" id="ipm_explanation_dialogue_body">
+			<p>{{ _('IPM_explanation') | safe }}</p>
+			<p>{{ _('Current subcorpus size: ') }} <span id="ipm_explanation_subcorpus_size"></span></p>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="modal fade modal-dialog-scrollable" id="lex_profile" tabindex="-1" role="dialog" aria-labelledby="lex_profile_header" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="lex_profile_header">{{ _('Lexical profile') }}</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+			</div>
+			<div class="modal-body" id="lex_profile_body">
+				<p>Lexical profile body</p>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default btn-success" aria-label="OK" id="lex_profile_ok">OK</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="modal fade modal-dialog-scrollable" id="paradigm" tabindex="-1" role="dialog" aria-labelledby="paradigm_header" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="paradigm_header">{{ _('Paradigm') }}</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+			</div>
+			<div class="modal-body" id="paradigm_body">
+				<p>Paradigm body</p>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default btn-success" aria-label="OK" id="paradigm_ok">OK</button>
+			</div>
+		</div>
+	</div>
+</div>
+
 {% endif %}
 
 <div class="modal fade modal-dialog-scrollable" id="help_dialogue" tabindex="-1" role="dialog" aria-labelledby="help_dialogue_header" aria-hidden="true">
@@ -138,10 +187,10 @@
 				</div>
 				<div class="row justify-content-start">
 					<div class="col-4 col-sm-3">
-						<label for="error_report_reference" id="_label_error_report_reference" class="search_label">{{ _('Your contact details (optional):') }}</label>
+						<label for="error_report_reference" id="_label_error_report_reference" class="search_label">{% if error_reports_name_obligatory %}{{ _('Your contact details:') }}{% else %}{{ _('Your contact details (optional):') }}{% endif %}</label>
 					</div>
 					<div class="col-8">
-						<input type="text" class="error_report_input" name="error_report_reference" id="error_report_reference">
+						<input type="text" class="error_report_input" name="error_report_reference" id="error_report_reference"{% if error_reports_name_obligatory %} required{% endif %}>
 					</div>
 				</div>
 			</form>
