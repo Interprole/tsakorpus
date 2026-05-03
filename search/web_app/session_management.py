@@ -101,6 +101,11 @@ def get_session_data(fieldName):
 
     elif fieldName not in sessionData[session['session_id']]:
         sessionData[session['session_id']][fieldName] = ''
+    
+    # For last_query and word_constraints, use Flask session (stored in cookie) instead of server-side sessionData
+    if fieldName in ('last_query', 'word_constraints'):
+        return session.get(fieldName)
+    
     try:
         dictCurData = sessionData[session['session_id']]
         requestedValue = dictCurData[fieldName]
